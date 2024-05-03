@@ -6,7 +6,7 @@ from collections.abc import Mapping
 import logging
 from typing import Any
 
-from pylutron import Output
+from pylutron import Led, Output
 
 from homeassistant.components.automation import automations_with_entity
 from homeassistant.components.light import (
@@ -30,7 +30,7 @@ from homeassistant.helpers.issue_registry import (
 )
 
 from . import DOMAIN, LutronData
-from .entity import LutronDevice
+from .entity import LutronDevice, LutronKeypad
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,3 +181,44 @@ class LutronLight(LutronDevice, LightEntity):
         self._attr_brightness = hass_level
         if self._prev_brightness is None or hass_level != 0:
             self._prev_brightness = hass_level
+
+
+class LutronLedLight(LutronKeypad, LightEntity):
+    """Representation of a Lutron Led."""
+
+    _attr_color_mode = ColorMode.ONOFF
+    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_features = LightEntityFeature.FLASH
+    _lutron_device: Led
+    _attr_name = None
+
+    def __init__(self, area_name, keypad, lutron_device, controller):
+        """Initialize the light."""
+        super().__init__(area_name, lutron_device, controller, keypad)
+        self._keypad_name = keypad.name
+        self._attr_name = lutron_device.name
+        # self._attr_name = f"{self._area_name} {self._keypad_name}: {self._lutron_device.name}"
+
+    def turn_on(self, **kwargs):
+        """Turn the light on."""
+        self._lutron_device.state = 1
+
+    def turn_off(self, **kwargs):
+        """Turn the light off."""
+        self._lutron_device.state = 0
+
+    @property
+    def extra_state_attributes(self) -> Mapping[str, Any] | None:
+        """Return the state attributes."""
+        return {
+            "keypad": self._keypad_name,
+            "led": self._lutron_device.name,
+        }
+
+    def _request_state(self) -> None:
+        """Request the state from the device."""
+        _ = self._lutron_device.state
+
+    def _update_attrs(self) -> None:
+        """Update the state attributes."""
+        self._attr_is_on = self._lutron_device.last_state
