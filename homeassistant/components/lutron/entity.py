@@ -58,14 +58,18 @@ class LutronDevice(LutronBaseEntity):
     """Representation of a Lutron device entity."""
 
     def __init__(
-        self, area_name: str, lutron_device: LutronEntity, controller: Lutron
+        self,
+        area_name: str,
+        device_name: str,
+        lutron_device: LutronEntity,
+        controller: Lutron,
     ) -> None:
         """Initialize the device."""
         super().__init__(area_name, lutron_device, controller)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self.unique_id)},
             manufacturer="Lutron",
-            name=lutron_device.name,
+            name=device_name,
             suggested_area=area_name,
             via_device=(DOMAIN, controller.guid),
         )
@@ -86,6 +90,7 @@ class LutronKeypad(LutronBaseEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, keypad.id)},
             manufacturer="Lutron",
+            suggested_area=area_name,
             name=keypad.name,
         )
         if keypad.type == "MAIN_REPEATER":
