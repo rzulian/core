@@ -9,22 +9,30 @@ from urllib.error import HTTPError
 from pylutron import Lutron
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+###from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-from .const import DOMAIN
+from .const import (
+    CONF_REFRESH_DATA,
+    CONF_USE_AREA_FOR_DEVICE_NAME,
+    CONF_USE_FULL_PATH,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class LutronConfigFlow(ConfigFlow, domain=DOMAIN):
+class LutronRonModifiedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """User prompt for Main Repeater configuration information."""
 
     VERSION = 1
 
     async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+        self,
+        user_input: dict[str, Any] | None = None,
+        ###) -> ConfigFlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """First step in the config flow."""
 
         # Check if a configuration entry already exists
@@ -69,14 +77,19 @@ class LutronConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_HOST): str,
                     vol.Required(CONF_USERNAME, default="lutron"): str,
                     vol.Required(CONF_PASSWORD, default="integration"): str,
+                    vol.Required(CONF_REFRESH_DATA, default=True): bool,
+                    vol.Required(CONF_USE_FULL_PATH, default=False): bool,
+                    vol.Required(CONF_USE_AREA_FOR_DEVICE_NAME, default=False): bool,
                 }
             ),
             errors=errors,
         )
 
     async def async_step_import(
-        self, import_config: dict[str, Any]
-    ) -> ConfigFlowResult:
+        self,
+        import_config: dict[str, Any],
+        ####) -> ConfigFlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Attempt to import the existing configuration."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")

@@ -9,10 +9,16 @@
         "data": {
           "host": "[%key:common::config_flow::data::host%]",
           "username": "[%key:common::config_flow::data::username%]",
-          "password": "[%key:common::config_flow::data::password%]"
+          "password": "[%key:common::config_flow::data::password%]",
+          "refresh_data": "Reload data",
+          "use_full_path": "Use full path",
+          "use_area_for_device_name": "Use area"
         },
         "data_description": {
-          "host": "The hostname or IP address of the Lutron main repeater."
+          "host": "The hostname or IP address of the Lutron main repeater.",
+          "refresh_data": "Reload data",
+          "use_full_path": "Use location and area as area name, instead of area only.",
+          "use_area_for_device_name": "Use area in device name."
         },
         "description": "Please enter the main repeater login information",
         "title": "Main repeater setup"
