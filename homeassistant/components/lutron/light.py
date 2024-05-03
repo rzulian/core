@@ -44,12 +44,15 @@ async def async_setup_entry(
 
     Adds dimmers from the Main Repeater associated with the config_entry as
     light entities.
+
+    Set up the lutron leds for the keypads
     """
     ent_reg = er.async_get(hass)
     entry_data: LutronData = hass.data[DOMAIN][config_entry.entry_id]
     lights = []
+    leds = []
 
-    for area_name, device in entry_data.lights:
+    for area_name, device_name, device in entry_data.lights:
         if device.type == "CEILING_FAN_TYPE":
             # If this is a fan, check to see if this entity already exists.
             # If not, do not create a new one.
@@ -66,7 +69,9 @@ async def async_setup_entry(
                     # the entity so that the user is using the new fan entity instead.
                     ent_reg.async_remove(entity_id)
                 else:
-                    lights.append(LutronLight(area_name, device, entry_data.client))
+                    lights.append(
+                        LutronLight(area_name, device_name, device, entry_data.client)
+                    )
                     entity_automations = automations_with_entity(hass, entity_id)
                     entity_scripts = scripts_with_entity(hass, entity_id)
                     for item in entity_automations + entity_scripts:
@@ -85,10 +90,20 @@ async def async_setup_entry(
                             },
                         )
         else:
-            lights.append(LutronLight(area_name, device, entry_data.client))
+            lights.append(
+                LutronLight(area_name, device_name, device, entry_data.client)
+            )
 
     async_add_entities(
         lights,
+        True,
+    )
+
+    for area_name, keypad, device in entry_data.leds:
+        leds.append(LutronLedLight(area_name, keypad, device, entry_data.client))
+
+    async_add_entities(
+        leds,
         True,
     )
 
@@ -106,17 +121,22 @@ def to_hass_level(level):
 class LutronLight(LutronDevice, LightEntity):
     """Representation of a Lutron Light, including dimmable."""
 
-    _attr_color_mode = ColorMode.BRIGHTNESS
-    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-    _attr_supported_features = LightEntityFeature.TRANSITION | LightEntityFeature.FLASH
+    _attr_color_mode = ColorMode.ONOFF
+    _attr_supported_color_modes = {ColorMode.ONOFF}
     _lutron_device: Output
     _prev_brightness: int | None = None
     _attr_name = None
 
-    def __init__(self, area_name, lutron_device, controller) -> None:
+    def __init__(self, area_name, device_name, lutron_device, controller) -> None:
         """Initialize the light."""
-        super().__init__(area_name, lutron_device, controller)
+        super().__init__(area_name, device_name, lutron_device, controller)
         self._is_fan = lutron_device.type == "CEILING_FAN_TYPE"
+        if self._lutron_device.is_dimmable:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_supported_features = (
+                LightEntityFeature.TRANSITION | LightEntityFeature.FLASH
+            )
 
     def turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
@@ -137,7 +157,7 @@ class LutronLight(LutronDevice, LightEntity):
             if ATTR_BRIGHTNESS in kwargs and self._lutron_device.is_dimmable:
                 brightness = kwargs[ATTR_BRIGHTNESS]
             elif self._prev_brightness == 0:
-                brightness = 255 / 2
+                brightness = 255
             else:
                 brightness = self._prev_brightness
             self._prev_brightness = brightness

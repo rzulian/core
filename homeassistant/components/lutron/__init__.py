@@ -16,7 +16,13 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
+from .const import (
+    CONF_REFRESH_DATA,
+    CONF_USE_AREA_FOR_DEVICE_NAME,
+    CONF_USE_FULL_PATH,
+    DOMAIN,
+    LUTRON_DATA_FILE,
+)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
@@ -42,6 +48,9 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Required(CONF_HOST): cv.string,
                 vol.Required(CONF_PASSWORD): cv.string,
                 vol.Required(CONF_USERNAME): cv.string,
+                vol.Required(CONF_REFRESH_DATA, default=True): cv.boolean,
+                vol.Required(CONF_USE_FULL_PATH, default=False): cv.boolean,
+                vol.Required(CONF_USE_AREA_FOR_DEVICE_NAME, default=False): cv.boolean,
             }
         )
     },
@@ -106,11 +115,12 @@ class LutronData:
     client: Lutron
     binary_sensors: list[tuple[str, OccupancyGroup]]
     buttons: list[tuple[str, Keypad, Button]]
-    covers: list[tuple[str, Output]]
-    fans: list[tuple[str, Output]]
-    lights: list[tuple[str, Output]]
+    covers: list[tuple[str, str, Output]]
+    fans: list[tuple[str, str, Output]]
+    lights: list[tuple[str, str, Output]]
+    leds: list[tuple[str, Keypad, Led]]
     scenes: list[tuple[str, Keypad, Button, Led]]
-    switches: list[tuple[str, Output]]
+    switches: list[tuple[str, str, Output]]
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -119,9 +129,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     host = config_entry.data[CONF_HOST]
     uid = config_entry.data[CONF_USERNAME]
     pwd = config_entry.data[CONF_PASSWORD]
+    refresh_data = config_entry.data[CONF_REFRESH_DATA]
+    use_full_path = config_entry.data[CONF_USE_FULL_PATH]
+    use_area_for_device_name = config_entry.data[CONF_USE_AREA_FOR_DEVICE_NAME]
+
+    lutron_data_file = hass.config.path(LUTRON_DATA_FILE)
 
     lutron_client = Lutron(host, uid, pwd)
-    await hass.async_add_executor_job(lutron_client.load_xml_db)
+    await hass.async_add_executor_job(
+        lambda: lutron_client.load_xml_db(lutron_data_file, refresh_data)
+    )
     lutron_client.connect()
     _LOGGER.info("Connected to main repeater at %s", host)
 
@@ -135,29 +152,36 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         covers=[],
         fans=[],
         lights=[],
+        leds=[],
         scenes=[],
         switches=[],
     )
     # Sort our devices into types
     _LOGGER.debug("Start adding devices")
     for area in lutron_client.areas:
+        area_name = area.name if not use_full_path else area.location + " " + area.name
         _LOGGER.debug("Working on area %s", area.name)
         for output in area.outputs:
             platform = None
+            device_name = (
+                output.name
+                if not use_area_for_device_name
+                else area_name + " " + output.name
+            )
             _LOGGER.debug("Working on output %s", output.type)
-            if output.type == "SYSTEM_SHADE":
-                entry_data.covers.append((area.name, output))
+            if output.type in ("SYSTEM_SHADE", "MOTOR"):
+                entry_data.covers.append((area_name, device_name, output))
                 platform = Platform.COVER
             elif output.type == "CEILING_FAN_TYPE":
-                entry_data.fans.append((area.name, output))
+                entry_data.fans.append((area_name, device_name, output))
                 platform = Platform.FAN
                 # Deprecated, should be removed in 2024.8
-                entry_data.lights.append((area.name, output))
-            elif output.is_dimmable:
-                entry_data.lights.append((area.name, output))
+                entry_data.lights.append((area_name, device_name, output))
+            elif output.is_light:
+                entry_data.lights.append((area_name, device_name, output))
                 platform = Platform.LIGHT
             else:
-                entry_data.switches.append((area.name, output))
+                entry_data.switches.append((area_name, device_name, output))
                 platform = Platform.SWITCH
 
             _async_check_entity_unique_id(
@@ -184,13 +208,21 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                     "Toggle",
                     "SingleSceneRaiseLower",
                     "MasterRaiseLower",
+                    "DualAction",
+                    "AdvancedToggle",
+                    "AdvancedConditional",
+                    "SimpleConditional",
                 ):
                     # Associate an LED with a button if there is one
                     led = next(
                         (led for led in keypad.leds if led.number == button.number),
                         None,
                     )
-                    entry_data.scenes.append((area.name, keypad, button, led))
+                    entry_data.scenes.append((area_name, keypad, button, led))
+
+                    # Add the LED as a light device if is controlled via integration
+                    if led is not None and button.led_logic == 5:
+                        entry_data.leds.append((area_name, keypad, led))
 
                     platform = Platform.SCENE
                     _async_check_entity_unique_id(
@@ -212,9 +244,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                             entry_data.client.guid,
                         )
                 if button.button_type:
-                    entry_data.buttons.append((area.name, keypad, button))
-        if area.occupancy_group is not None:
-            entry_data.binary_sensors.append((area.name, area.occupancy_group))
+                    entry_data.buttons.append((area_name, keypad, button))
+        # exclude occupancy_group not linked to an area
+        if area.occupancy_group is not None and area.occupancy_group.id != 0:
+            entry_data.binary_sensors.append((area_name, area.occupancy_group))
             platform = Platform.BINARY_SENSOR
             _async_check_entity_unique_id(
                 hass,

@@ -53,6 +53,10 @@ class LutronOccupancySensor(LutronDevice, BinarySensorEntity):
     _lutron_device: OccupancyGroup
     _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
 
+    def __init__(self, area_name, lutron_device, controller) -> None:
+        """Initialize the occupancy sensor."""
+        super().__init__(area_name, lutron_device.name, lutron_device, controller)
+
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         """Return the state attributes."""

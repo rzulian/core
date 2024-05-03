@@ -30,13 +30,13 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = []
 
     # Add Lutron Switches
-    for area_name, device in entry_data.switches:
-        entities.append(LutronSwitch(area_name, device, entry_data.client))
+    for area_name, device_name, device in entry_data.switches:
+        entities.append(LutronSwitch(area_name, device_name, device, entry_data.client))
 
     # Add the indicator LEDs for scenes (keypad buttons)
-    for area_name, keypad, scene, led in entry_data.scenes:
-        if led is not None:
-            entities.append(LutronLed(area_name, keypad, scene, led, entry_data.client))
+    # for area_name, keypad, scene, led in entry_data.scenes:
+    #     if led is not None:
+    #         entities.append(LutronLed(area_name, keypad, scene, led, entry_data.client))
     async_add_entities(entities, True)
 
 
