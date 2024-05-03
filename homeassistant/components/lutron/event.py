@@ -21,12 +21,18 @@ class LutronEventType(StrEnum):
     SINGLE_PRESS = "single_press"
     PRESS = "press"
     RELEASE = "release"
+    HOLD = "hold"
+    DOUBLE_TAP = "double_tap"
+    HOLD_RELEASE = "hold_release"
 
 
 LEGACY_EVENT_TYPES: dict[LutronEventType, str] = {
     LutronEventType.SINGLE_PRESS: "single",
-    LutronEventType.PRESS: "pressed",
-    LutronEventType.RELEASE: "released",
+    LutronEventType.PRESS: "press",
+    LutronEventType.RELEASE: "release",
+    LutronEventType.HOLD: "hold",
+    LutronEventType.DOUBLE_TAP: "double_tap",
+    LutronEventType.HOLD_RELEASE: "hold_release",
 }
 
 
@@ -62,14 +68,21 @@ class LutronEventEntity(LutronKeypad, EventEntity):
             name += f" {button.number}"
         self._attr_name = name
         self._has_release_event = (
-            button.button_type is not None and "RaiseLower" in button.button_type
+            button.button_type is not None
+            and button.button_type in ("RaiseLower", "DualAction")
         )
-        if self._has_release_event:
-            self._attr_event_types = [LutronEventType.PRESS, LutronEventType.RELEASE]
-        else:
-            self._attr_event_types = [LutronEventType.SINGLE_PRESS]
+        self._attr_event_types = [
+            LutronEventType.PRESS,
+            LutronEventType.RELEASE,
+            LutronEventType.HOLD,
+            LutronEventType.HOLD_RELEASE,
+            LutronEventType.DOUBLE_TAP,
+        ]
 
-        self._full_id = slugify(f"{area_name} {name}")
+        self._full_id = slugify(f"{area_name} {keypad.name}: {name}")
+
+        name = f"{keypad.name}: {button.name}"
+
         self._id = slugify(name)
 
     async def async_added_to_hass(self) -> None:
@@ -89,13 +102,16 @@ class LutronEventEntity(LutronKeypad, EventEntity):
     ) -> None:
         """Handle received event."""
         action: LutronEventType | None = None
-        if self._has_release_event:
-            if event == Button.Event.PRESSED:
-                action = LutronEventType.PRESS
-            else:
-                action = LutronEventType.RELEASE
-        elif event == Button.Event.PRESSED:
-            action = LutronEventType.SINGLE_PRESS
+
+        ev_map = {
+            Button.Event.PRESS: LutronEventType.PRESS,
+            Button.Event.RELEASE: LutronEventType.RELEASE,
+            Button.Event.HOLD: LutronEventType.HOLD,
+            Button.Event.DOUBLE_TAP: LutronEventType.DOUBLE_TAP,
+            Button.Event.HOLD_RELEASE: LutronEventType.HOLD_RELEASE,
+        }
+
+        action = ev_map.get(event)
 
         if action:
             data = {
