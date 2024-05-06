@@ -114,12 +114,12 @@ class LutronData:
 
     client: Lutron
     binary_sensors: list[tuple[str, OccupancyGroup]]
-    buttons: list[tuple[str, Keypad, Button]]
+    buttons: list[tuple[str, str, Keypad, Button]]
     covers: list[tuple[str, str, Output]]
     fans: list[tuple[str, str, Output]]
     lights: list[tuple[str, str, Output]]
-    leds: list[tuple[str, Keypad, Led]]
-    scenes: list[tuple[str, Keypad, Button, Led]]
+    leds: list[tuple[str, str, Keypad, Led]]
+    scenes: list[tuple[str, str, Keypad, Button, Led]]
     switches: list[tuple[str, str, Output]]
 
 
@@ -201,6 +201,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
             )
 
         for keypad in area.keypads:
+            device_name = (
+                keypad.name
+                if not use_area_for_device_name
+                else area_name + " " + keypad.name
+            )
             for button in keypad.buttons:
                 # If the button has a function assigned to it, add it as a scene
                 if button.name != "Unknown Button" and button.button_type in (
@@ -218,11 +223,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                         (led for led in keypad.leds if led.number == button.number),
                         None,
                     )
-                    entry_data.scenes.append((area_name, keypad, button, led))
+                    entry_data.scenes.append(
+                        (area_name, device_name, keypad, button, led)
+                    )
 
                     # Add the LED as a light device if is controlled via integration
                     if led is not None and button.led_logic == 5:
-                        entry_data.leds.append((area_name, keypad, led))
+                        entry_data.leds.append((area_name, device_name, keypad, led))
 
                     platform = Platform.SCENE
                     _async_check_entity_unique_id(
@@ -244,7 +251,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                             entry_data.client.guid,
                         )
                 if button.button_type:
-                    entry_data.buttons.append((area_name, keypad, button))
+                    entry_data.buttons.append((area_name, device_name, keypad, button))
         # exclude occupancy_group not linked to an area
         if area.occupancy_group is not None and area.occupancy_group.id != 0:
             entry_data.binary_sensors.append((area_name, area.occupancy_group))

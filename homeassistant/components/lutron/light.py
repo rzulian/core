@@ -99,8 +99,10 @@ async def async_setup_entry(
         True,
     )
 
-    for area_name, keypad, device in entry_data.leds:
-        leds.append(LutronLedLight(area_name, keypad, device, entry_data.client))
+    for area_name, device_name, keypad, device in entry_data.leds:
+        leds.append(
+            LutronLedLight(area_name, device_name, keypad, device, entry_data.client)
+        )
 
     async_add_entities(
         leds,
@@ -212,10 +214,10 @@ class LutronLedLight(LutronKeypad, LightEntity):
     _lutron_device: Led
     _attr_name = None
 
-    def __init__(self, area_name, keypad, lutron_device, controller):
+    def __init__(self, area_name, device_name, keypad, lutron_device, controller):
         """Initialize the light."""
-        super().__init__(area_name, lutron_device, controller, keypad)
-        self._keypad_name = keypad.name
+        super().__init__(area_name, device_name, lutron_device, controller, keypad)
+        self._keypad_name = device_name
         self._attr_name = lutron_device.name
         # self._attr_name = f"{self._area_name} {self._keypad_name}: {self._lutron_device.name}"
 

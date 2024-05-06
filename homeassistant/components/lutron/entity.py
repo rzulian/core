@@ -81,6 +81,7 @@ class LutronKeypad(LutronBaseEntity):
     def __init__(
         self,
         area_name: str,
+        device_name: str,
         lutron_device: LutronEntity,
         controller: Lutron,
         keypad: Keypad,
@@ -91,7 +92,7 @@ class LutronKeypad(LutronBaseEntity):
             identifiers={(DOMAIN, keypad.id)},
             manufacturer="Lutron",
             suggested_area=area_name,
-            name=keypad.name,
+            name=device_name,
         )
         if keypad.type == "MAIN_REPEATER":
             self._attr_device_info[ATTR_IDENTIFIERS].add((DOMAIN, controller.guid))
