@@ -81,7 +81,7 @@ class LutronEventEntity(LutronKeypad, EventEntity):
         ]
 
         self._full_id = slugify(f"{area_name} {keypad.name}: {name}")
-        self._id = slugify(name)
+        self._id = slugify(f"{keypad.name}: {name}")
 
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
