@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import logging
 
-from pylutron import Button, Keypad, Led, Lutron, OccupancyGroup, Output
+from pylutron import Button, Keypad, Led, Lutron, OccupancyGroup, Output, Sysvar
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -31,6 +31,7 @@ PLATFORMS = [
     Platform.FAN,
     Platform.LIGHT,
     Platform.SCENE,
+    Platform.SENSOR,
     Platform.SWITCH,
 ]
 
@@ -121,6 +122,7 @@ class LutronData:
     leds: list[tuple[str, str, Keypad, Led]]
     scenes: list[tuple[str, str, Keypad, Button, Led]]
     switches: list[tuple[str, str, Output]]
+    variables: list[tuple[str, Sysvar]]
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -134,10 +136,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     use_area_for_device_name = config_entry.data[CONF_USE_AREA_FOR_DEVICE_NAME]
 
     lutron_data_file = hass.config.path(LUTRON_DATA_FILE)
+    lutron_variable_ids = [155, 158]
 
     lutron_client = Lutron(host, uid, pwd)
     await hass.async_add_executor_job(
-        lambda: lutron_client.load_xml_db(lutron_data_file, refresh_data)
+        lambda: lutron_client.load_xml_db(
+            lutron_data_file, refresh_data, variable_ids=lutron_variable_ids
+        )
     )
     lutron_client.connect()
     _LOGGER.info("Connected to main repeater at %s", host)
@@ -155,6 +160,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         leds=[],
         scenes=[],
         switches=[],
+        variables=[],
     )
     # Sort our devices into types
     _LOGGER.debug("Start adding devices")
@@ -271,6 +277,27 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                 area.occupancy_group.legacy_uuid,
                 entry_data.client.guid,
             )
+    # check variables
+    for variable in lutron_client.variables:
+        _LOGGER.debug("Working on variable %s", variable.name)
+        platform = Platform.SENSOR
+        entry_data.variables.append((variable.name, variable))
+
+        _async_check_entity_unique_id(
+            hass,
+            entity_registry,
+            platform,
+            "",
+            variable.legacy_uuid,
+            entry_data.client.guid,
+        )
+        _async_check_device_identifiers(
+            hass,
+            device_registry,
+            "",
+            variable.legacy_uuid,
+            entry_data.client.guid,
+        )
 
     device_registry.async_get_or_create(
         config_entry_id=config_entry.entry_id,
