@@ -56,7 +56,7 @@ class LutronVariable(LutronDevice, SensorEntity):
 
     def _update_attrs(self) -> None:
         """Update the state attributes."""
-        self._attr_state = self._lutron_device.last_state()
+        self._attr_native_value = self._lutron_device.last_state()
 
     def _request_state(self) -> None:
         """Request the state from the device."""
